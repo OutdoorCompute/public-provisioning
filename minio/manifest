@@ -20,7 +20,7 @@ useradd -m -r -g minio-user minio-user
 [ ! -d /minio-storage1 ] && mkdir /minio-storage1
 chown minio-user:minio-user /minio-storage1
 
-if [[ ! -d var/aoeu/minio-certs ]]
+if [[ ! -f var/aoeu/minio-certs/private-key ]]
 then
   mkdir -p var/aoeu/minio-certs
   echo '*' > var/aoeu/minio-certs/.gitignore
