@@ -23,7 +23,7 @@ chown minio-user:minio-user /minio-storage1
 if [[ ! -d var/aoeu/minio-certs ]]
 then
   mkdir -p var/aoeu/minio-certs
-  touch var/aoeu/minio-certs/.gitignore
+  echo '.' > var/aoeu/minio-certs/.gitignore
 
   if [ ! -f $HOME/minio-distribute.tar ]
   then
