@@ -1,4 +1,4 @@
-#!/bin/ksh
+#!/usr/bin/bash
 #?chmod +x X
 
 pwd | grep -q '/aoeu_apply/' || { echo '$0 should be execute from its own directory.'; exit 1; }
@@ -45,17 +45,17 @@ module_fs()
 
     if [[ ! -z "$COMMANDS" ]]
     then
-      echo "$COMMANDS" | ksh
+      echo "$COMMANDS" | bash
     else
       # Set default permissions.
       # Documentation can be more relaxed
       # but default should be strict.
       if [[ ! -z "$(echo \"$FILENAME\" | egrep 'md$')" ]]
       then
-        chown root:wheel "/${FILEPATH}/${FILENAME}"
+        chown root:root "/${FILEPATH}/${FILENAME}"
         chmod 644 "/${FILEPATH}/${FILENAME}"
       else
-        chown root:wheel "/${FILEPATH}/${FILENAME}"
+        chown root:root "/${FILEPATH}/${FILENAME}"
         chmod 640 "/${FILEPATH}/${FILENAME}"
       fi
     fi
@@ -72,7 +72,10 @@ module_manifest()
   echo "# Executing manifest in $MANIFEST"
 
   chmod +x "$MANIFEST/manifest"
-  ksh $MANIFEST/manifest
+
+  cd $MANIFEST
+  bash manifest
+  cd -
 }
 
 [[ $(whoami) != 'root' ]] && { 'This script need to be executed as root.'; exit 1; }

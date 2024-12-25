@@ -1,25 +1,60 @@
 #!/usr/bin/bash
 #? chmod +x X
 
-wget https://dl.min.io/server/minio/release/linux-amd64/archive/minio_20241213221912.0.0_amd64.deb -O /tmp/minio.deb
-dpkg -i /tmp/minio.deb
+[ ! -f /etc/aoeu/minion.json ] && exit 1
+
+export $(cat /etc/aoeu/minion.json | jq -jr ".|to_entries[]|select(.value | type!=\"object\")|(\"_\",.key|ascii_upcase),\"=\",.value,\"\n\"")
+
+[ ! -f /tmp/minio-server.deb ] && wget https://dl.min.io/server/minio/release/linux-amd64/archive/minio_20241213221912.0.0_amd64.deb -O /tmp/minio-server.deb
+dpkg -i /tmp/minio-server.deb
+
+[ ! -f /tmp/minio-client.deb ] && wget https://dl.min.io/client/mc/release/linux-amd64/mc.deb -O /tmp/minio-client.deb
+dpkg -i /tmp/minio-client.deb
+
 apt-get update
+apt-get install mcli
 
 groupadd -r minio-user
 useradd -m -r -g minio-user minio-user
-chown minio-user:minio-user /node-storage
+
+[ ! -d /minio-storage1 ] && mkdir /minio-storage1
+chown minio-user:minio-user /minio-storage1
 
 if [[ ! -d var/aoeu/minio-certs ]]
 then
   mkdir -p var/aoeu/minio-certs
+  touch var/aoeu/minio-certs/.gitignore
 
-  cd var/aoeu/minio-certs
-  openssl genrsa -out private.key 2048
-  openssl req -new -key private.key -out request.csr
-  openssl x509 -req -days 365 -in request.csr -signkey private.key -out public.crt
+  if [ ! -f $HOME/minio-distribute.tar ]
+  then
+    cd var/aoeu/minio-certs
+  
+    cp ../openssl-san.conf openssl-san.conf
+    sed -i "s/MINIO_NODE1/$_MINIO_NODE1/" openssl-san.conf
+    sed -i "s/MINIO_NODE2/$_MINIO_NODE2/" openssl-san.conf
+  
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout private.key -out public.crt -config openssl-san.conf
+    cd -
+
+    tar -cf $HOME/minio-distribute.tar var/aoeu/minio-certs
+    echo "Move $HOME/minio-distribute.tar to other minio hosts"
+  else
+    rm -r var/aoeu/minio-certs
+    tar -xf $HOME/minio-distribute.tar .
+  fi
+
 fi
 
 mkdir -p /home/minio-user/.minio/certs
 cp var/aoeu/minio-certs/private.key /home/minio-user/.minio/certs/.
 cp var/aoeu/minio-certs/public.crt /home/minio-user/.minio/certs/.
 
+chown -R minio-user: /home/minio-user/.minio
+find . /home/minio-user/.minio/ -type f -exec chmod 640 {} \;
+
+hostname $_HOSTNAME
+
+sed -E -i "/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+[ ]+$_HOSTNAME/d" /etc/hosts
+
+IP=$(ifconfig | grep inet | head -n1 | awk '{print $2}')
+echo "$IP      $_HOSTNAME" >> /etc/hosts
