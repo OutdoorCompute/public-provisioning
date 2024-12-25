@@ -1,0 +1,47 @@
+#!/bin/ksh
+
+# package install function. Only install packages if it hasnt been running in the last hour.
+# also add variable that will make install packages -n and -v
+
+add_cron_entry()
+{
+  USERNAME="$1"
+  CRON_ENTRY_ID="$2"
+  CRON_ENTRY="$3"
+
+  service cron stop > /dev/null
+
+  TMP_CRON=$(mktemp)
+
+  echo "  Modify crontab, add entry '$CRON_ENTRY_ID'"
+
+  cat "/var/cron/tabs/$USERNAME" > $TMP_CRON
+
+  # Remove old entry if it exists.
+  RESULT=$(sed "/# $CRON_ENTRY_ID/{N;d;};" "$TMP_CRON")
+  echo "$RESULT" >> $TMP_CRON
+
+  # Add cron entry
+  echo "# $CRON_ENTRY_ID\n$CRON_ENTRY" >> $TMP_CRON
+
+  cp $TMP_CRON /var/cron/tabs/$USERNAME
+  rm $TMP_CRON
+
+  service cron start > /dev/null
+}
+
+file_changed()
+{
+  FILEPATH="$1"
+  HASH_FILE='/var/aoeu_apply/known_files'
+
+  [[ ! -d '/var/aoeu' ]] && mkdir -p /var/aoeu
+
+  HASH=$(sha512 $FILEPATH)
+  cat $HASH_FILE | grep -q "$HASH" && { echo "  $FILEPATH has not changed."; return 1; }
+  
+  echo "  $FILEPATH has changed."
+
+  echo "$HASH" >> $HASH_FILE
+  return 0
+}

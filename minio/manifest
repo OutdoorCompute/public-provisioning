@@ -1,0 +1,25 @@
+#!/usr/bin/bash
+#? chmod +x X
+
+wget https://dl.min.io/server/minio/release/linux-amd64/archive/minio_20241213221912.0.0_amd64.deb -O /tmp/minio.deb
+dpkg -i /tmp/minio.deb
+apt-get update
+
+groupadd -r minio-user
+useradd -m -r -g minio-user minio-user
+chown minio-user:minio-user /node-storage
+
+if [[ ! -d var/aoeu/minio-certs ]]
+then
+  mkdir -p var/aoeu/minio-certs
+
+  cd var/aoeu/minio-certs
+  openssl genrsa -out private.key 2048
+  openssl req -new -key private.key -out request.csr
+  openssl x509 -req -days 365 -in request.csr -signkey private.key -out public.crt
+fi
+
+mkdir -p /home/minio-user/.minio/certs
+cp var/aoeu/minio-certs/private.key /home/minio-user/.minio/certs/.
+cp var/aoeu/minio-certs/public.crt /home/minio-user/.minio/certs/.
+

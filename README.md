@@ -1,1 +1,3 @@
 # Provisioning scripts
+
+- minIO

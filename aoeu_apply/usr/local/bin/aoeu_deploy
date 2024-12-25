@@ -1,0 +1,116 @@
+#!/bin/ksh
+#?chmod +x X
+
+pwd | grep -q '/aoeu_apply/' || { echo '$0 should be execute from its own directory.'; exit 1; }
+
+MODULE_DIR="$(pwd)/../../../../"
+
+module_fs()
+{
+  MODULE="$1"
+
+  echo "# $MODULE"
+
+  [[ ! -d $MODULE ]] && { echo "Module '$MODULE' does not exist"; exit 1; }
+
+  cd $MODULE
+
+  # Exception for aoeu_app
+  if [[ "$MODULE" == 'aoeu_app' ]]
+  then
+    echo 'Copy manifest to /'
+    cp var/humjumjum.nl/app/manifest /.
+    cd - > /dev/null
+    return 0
+  fi
+
+  # Process files.
+  # ignore manifest files and .git directories.
+  #find . -mindepth 2 -type f -not -path '*.git*' | sed 's/^\.\///' | while read PATH_TO_FILE
+  find . -mindepth 2 -type f | sed 's/^\.\///' | while read PATH_TO_FILE
+  do
+    FILENAME=$(basename "$PATH_TO_FILE")
+    FILEPATH=$(dirname "$PATH_TO_FILE")
+
+    echo "  /$FILEPATH/$FILENAME"
+
+    [[ ! -d "/${FILEPATH}" ]] && mkdir -p "/${FILEPATH}"
+    cp "${FILEPATH}/${FILENAME}" "/${FILEPATH}/."
+
+    # Execute commands embedded into
+    # comment right after the shabang
+    # line.
+    COMMANDS=$(cat ${FILEPATH}/${FILENAME} | head -n15 | egrep '^#\?' | sed 's/^#\? //')
+    COMMANDS=$(echo "$COMMANDS" | sed "s>X>/${FILEPATH}/${FILENAME}>g")
+
+    if [[ ! -z "$COMMANDS" ]]
+    then
+      echo "$COMMANDS" | ksh
+    else
+      # Set default permissions.
+      # Documentation can be more relaxed
+      # but default should be strict.
+      if [[ ! -z "$(echo \"$FILENAME\" | egrep 'md$')" ]]
+      then
+        chown root:wheel "/${FILEPATH}/${FILENAME}"
+        chmod 644 "/${FILEPATH}/${FILENAME}"
+      else
+        chown root:wheel "/${FILEPATH}/${FILENAME}"
+        chmod 640 "/${FILEPATH}/${FILENAME}"
+      fi
+    fi
+  done
+  cd - > /dev/null
+}
+
+module_manifest()
+{
+  MANIFEST="$1"
+
+  [[ ! -f "$MANIFEST/manifest" ]] && return 1
+
+  echo "# Executing manifest in $MANIFEST"
+
+  chmod +x "$MANIFEST/manifest"
+  ksh $MANIFEST/manifest
+}
+
+[[ $(whoami) != 'root' ]] && { 'This script need to be executed as root.'; exit 1; }
+
+MODULE="$1"
+
+# Place hash file. Is used to
+# determine if file has changed.
+mkdir -p /var/aoeu_apply/
+touch /var/aoeu_apply/known_files
+
+# Synchronize
+cd $MODULE_DIR
+
+if [[ ! -z "$MODULE" ]]
+then
+  module_fs $MODULE
+  module_manifest $MODULE
+else
+  # Get all the modules.
+  find . -mindepth 1 -maxdepth 1 -type d -not -name '.git' -not -name '.swp' | sed 's/\.\///' | while read MODULE
+  do
+    module_fs $MODULE
+  done
+
+  # Run manifest base
+  MANIFEST_PATH='system/manifest'
+  echo "# Executing manifest in $(dirname $MANIFEST_PATH)"
+  [[ -f "$MANIFEST_PATH" ]] && { chmod +x "$MANIFEST_PATH"; "$MANIFEST_PATH"; }
+
+  MANIFEST_PATH='users/manifest'
+  echo "# Executing manifest in $(dirname $MANIFEST_PATH)"
+  [[ -f "$MANIFEST_PATH" ]] && { chmod +x "$MANIFEST_PATH"; "$MANIFEST_PATH"; }
+
+  # Run manifest
+  MANIFESTS="$(cd /etc/aoeu; ls *json | sed 's/\.json$//')"
+  echo "$MANIFESTS" | grep -E -v '(system|users)' | while read MODULE
+  do
+    module_manifest $MODULE
+  done
+fi
