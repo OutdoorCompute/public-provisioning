@@ -1,0 +1,5 @@
+{
+  "hostname": "minio1.callisto.outdoorcompute.nl",
+  "minio_node1": "minio1.callisto.outdoorcompute.nl",
+  "minio_node2": "minio2.callisto.outdoorcompute.nl"
+}

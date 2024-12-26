@@ -1,6 +1,10 @@
 #!/usr/bin/bash
 #? chmod +x X
 
+# Debug tips:
+# - host should always resolve to minio IP. If minio runs internal -> internal IP (/etc/hosts).
+# - any errors with storage, check permission and if folder is mounted.
+
 [ ! -f /etc/aoeu/minion.json ] && exit 1
 
 export $(cat /etc/aoeu/minion.json | jq -jr ".|to_entries[]|select(.value | type!=\"object\")|(\"_\",.key|ascii_upcase),\"=\",.value,\"\n\"")
@@ -20,7 +24,7 @@ useradd -m -r -g minio-user minio-user
 [ ! -d /minio-storage1 ] && mkdir /minio-storage1
 chown minio-user:minio-user /minio-storage1
 
-if [[ ! -f var/aoeu/minio-certs/private-key ]]
+if [[ ! -f var/aoeu/minio-certs/private.key ]]
 then
   mkdir -p var/aoeu/minio-certs
   echo '*' > var/aoeu/minio-certs/.gitignore
@@ -53,8 +57,11 @@ chown -R minio-user: /home/minio-user/.minio
 find . /home/minio-user/.minio/ -type f -exec chmod 640 {} \;
 
 hostname $_HOSTNAME
+hostnamectl hostname $_HOSTNAME
 
 sed -E -i "/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+[ ]+$_HOSTNAME/d" /etc/hosts
 
 IP=$(ifconfig | grep inet | head -n1 | awk '{print $2}')
 echo "$IP      $_HOSTNAME" >> /etc/hosts
+
+#
